@@ -13,11 +13,7 @@ server <- function(input, output) {
             # Increment the progress bar, and update the detail text.
             # Pause for 0.1 seconds to simulate a long computation.
       incProgress(1/2, detail = "Estamos badogando...")
-      analiseDeMonitoramento(input$workdir, 
-                             input$urlpost, 
-                             input$fbid, 
-                             input$date
-      )
+#      analiseDeMonitoramento(input$workdir, input$urlpost, input$fbid, input$date )
       incProgress(2/2, detail = "Badogada Perfeita! :)")
       
       Sys.sleep(3)
@@ -52,7 +48,8 @@ server <- function(input, output) {
       
       sufix <- format(Sys.time(),"%d%m%Y%H%M");
       # command file.path already controls for the OS
-      load(file.path(workdir,"fb_oauth"))
+#      load(file.path(workdir,"fb_oauth"))
+      load("/srv/shiny-server/cns/BadogueContingencial/fb_oauth");
       
       data_inicio <- ymd(as.character(data)) + days(-2);
       data_final <- ymd(as.character(data)) + days(2);
@@ -78,7 +75,8 @@ server <- function(input, output) {
       
       sufix <- format(Sys.time(),"%d%m%Y%H%M");
       # command file.path already controls for the OS
-      load(file.path(workdir,"fb_oauth"))
+      load("/srv/shiny-server/cns/BadogueContingencial/fb_oauth");
+#      load(file.path(workdir,"fb_oauth"))
       
       data_inicio <- ymd(as.character(data)) + days(-2);
       data_final <- ymd(as.character(data)) + days(2);
@@ -118,7 +116,7 @@ server <- function(input, output) {
       pal <- brewer.pal(9, "BuGn")
       pal <- pal[-(1:2)]
       pal2 <- brewer.pal(8,"Dark2")
-      wordcloud(d$word,d$freq, scale=c(8,.3),min.freq=2,max.words=100, random.order=T, rot.per=.15, colors=pal2, vfont=c("sans serif","plain"))
+      wordcloud(d$word,d$freq, scale=c(8,.3),min.freq=1,max.words=100, random.order=T, rot.per=.15, colors=pal2, vfont=c("sans serif","plain"))
 
    })
    
@@ -130,7 +128,8 @@ server <- function(input, output) {
       
       sufix <- format(Sys.time(),"%d%m%Y%H%M");
       # command file.path already controls for the OS
-      load(file.path(workdir,"fb_oauth"))
+#      load(file.path(workdir,"fb_oauth"))
+      load("/srv/shiny-server/cns/BadogueContingencial/fb_oauth");
       
       data_inicio <- ymd(as.character(data)) + days(-2);
       data_final <- ymd(as.character(data)) + days(2);
