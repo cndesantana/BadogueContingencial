@@ -1,82 +1,62 @@
-source("./dependencies.R")
-source("./experiment_sentimental_analysis.R")
+library(stringr)
+library(quanteda)
+library(readtext)
+library(ggplot2)
+library(tidyr)
+library(shinydashboard)
+library(shiny)
+library(shinyFiles)
+library(devtools)
+library(Rfacebook)
+library(lubridate)
+library(dplyr)
+library(stylo)
+library(tidytext)
+library(tm)
+library(wordcloud)
+library(xlsx)
+library(gdata)
+library(readxl)
+library(htmlwidgets)
+
+workdir <- "/srv/shiny-server/cns/BadogueExcel"
+
+getTidySentimentos <- function(file){
+   polaridade <- toupper(file$Polaridade)
+   text <- file$Conteúdo
+   myCorpus <- corpus(text)
+   metadoc(myCorpus, "language") <- "portuguese"
+   tokenInfo <- summary(myCorpus)
+   kwic(myCorpus, "gestor")
+   myStemMat <- dfm(myCorpus, remove = stopwords("portuguese"), stem = TRUE, remove_punct = TRUE)
+   byPolaridadeDfm <- dfm(myCorpus, groups = polaridade, remove = c(stopwords("portuguese"),"scontent.xx.fbcdn.net","https","oh","oe","pra"," v ","como","para","de","do","da","das","dos","isso","esse","nisso","nesse","aquele","nesses","aqueles","aquela","aquelas","que"), remove_punct = TRUE)
+   ap_td <- tidy(byPolaridadeDfm)
+   names(ap_td) <- c("sentimento","term","count")
+   return(ap_td);
+}
+
+getTidyWords <- function(text){
+   myCorpus <- corpus(text)
+   metadoc(myCorpus, "language") <- "portuguese"
+   tokenInfo <- summary(myCorpus)
+   kwic(myCorpus, "gestor")
+   myStemMat <- dfm(myCorpus, remove = stopwords("portuguese"), stem = TRUE, remove_punct = TRUE)
+   mydfm <- dfm(myCorpus, remove = c(stopwords("portuguese"),"scontent.xx.fbcdn.net","https","oh","oe","pra"," v ","como","para","de","do","da","das","dos","isso","esse","nisso","nesse","aquele","nesses","aqueles","aquela","aquelas","que"), remove_punct = TRUE, remove_numbers= TRUE)
+   ap_td <- tidy(mydfm)
+   names(ap_td) <- c("sentimento","term","count")
+   return(ap_td);
+}
+
+options(shiny.fullstacktrace = TRUE)
 
 server <- function(input, output) {
-   
-   # Reactive expression to generate the requested distribution.
-   # This is called whenever the inputs change. The output
-   # functions defined below then all use the value computed from
-   # this expression
-   observeEvent(input$do, {
-      cat('Thank you for clicking\n')
-      withProgress(message = 'Badogando post...', value = 0, {
-            # Increment the progress bar, and update the detail text.
-            # Pause for 0.1 seconds to simulate a long computation.
-      incProgress(1/2, detail = "Estamos badogando...")
-#      analiseDeMonitoramento(input$workdir, input$urlpost, input$fbid, input$date )
-      incProgress(2/2, detail = "Badogada Perfeita! :)")
-      
-      Sys.sleep(3)
-      })
-   })
-
-   data <- reactive({
-      badogue <- switch(input$workdir, 
-                        input$urlpost, 
-                        input$fbid, 
-                        input$date)
-      
-      analiseDeMonitoramento(input$workdir, 
-              input$urlpost, 
-              input$fbid, 
-              input$date
-           )
-   })
-   
-   # Generate a plot of the data. Also uses the inputs to build
-   # the plot label. Note that the dependencies on both the inputs
-   # and the data reactive expression are both tracked, and
-   # all expressions are called in the sequence implied by the
-   # dependency graph
-
-   
-   output$plotReactions <- renderPlot({
-      workdir <- input$workdir
+  plotPalavras = function() {
       url <- input$urlpost
       id_pagina <- input$fbid 
       data <- input$date
       
-      sufix <- format(Sys.time(),"%d%m%Y%H%M");
       # command file.path already controls for the OS
-#      load(file.path(workdir,"fb_oauth"))
-      load("/srv/shiny-server/cns/BadogueContingencial/fb_oauth");
-      
-      data_inicio <- ymd(as.character(data)) + days(-2);
-      data_final <- ymd(as.character(data)) + days(2);
-      
-      mypage <- getPage(id_pagina, token = fb_oauth, feed=TRUE, since= as.character(data_inicio), until=as.character(data_final))
-      id_post <- mypage$id[which(as.character(mypage$link)%in%url)]
-      
-      reactions_post <- getReactions(id_post, token=fb_oauth)
-      allreactions <- reactions_post[,2:7]
-      
-      names(allreactions) <- c("Likes","Loves","Haha","Wow","Sad", "Angry")
-      allreactions <- allreactions[order(as.numeric(allreactions))]
-      p <- ggplot() + geom_bar(stat="identity", aes(x=names(allreactions), y = as.numeric(allreactions))) + xlab("Reações") + ylab("Número de Ocorrências") + coord_flip() 
-      print(p)
-#      plot(1:1000, log(1:1000),xlab="",ylab="")
-   })
-   
-   output$plotNuvem <- renderPlot({
-      workdir <- input$workdir
-      url <- input$urlpost
-      id_pagina <- input$fbid 
-      data <- input$date
-      
-      sufix <- format(Sys.time(),"%d%m%Y%H%M");
-      # command file.path already controls for the OS
-      load("/srv/shiny-server/cns/BadogueContingencial/fb_oauth");
-#      load(file.path(workdir,"fb_oauth"))
+      load(paste(workdir,"/fb_oauth",sep=""));
       
       data_inicio <- ymd(as.character(data)) + days(-2);
       data_final <- ymd(as.character(data)) + days(2);
@@ -85,51 +65,42 @@ server <- function(input, output) {
       id_post <- mypage$id[which(as.character(mypage$link)%in%url)]
       
       post_dados <- getPost(id_post, token=fb_oauth, n= 10000)
-      id_comments <- (post_dados$comments$from_id);
-      allmessages <- post_dados$comments$message
-      
-      spSamp<- unlist(strsplit(allmessages, split=", "))
-      nonAscIDX<- grep("spSamp", iconv(spSamp, "latin1", "ASCII", sub="spSamp"))
-      ascVec<- spSamp[ - nonAscIDX]
-      ascSamp<- paste(ascVec, collapse = ", ")
-      clnSamp<- gsub('[[:digit:]]+', '', ascSamp)
-      clnSamp<- gsub('[[:punct:]]+', '', clnSamp)
-      clnSamp<- gsub("http[[:alnum:]]*", "", clnSamp)
-      clnSamp<- gsub("([[:alpha:]])\1+", "", clnSamp)
-      SampCrps<- Corpus(VectorSource(clnSamp))
-      SampCrps<- tm_map(SampCrps, tolower)
-      SampCrps<- tm_map(SampCrps, removePunctuation)
-      SampCrps<- tm_map(SampCrps, removeNumbers)
-      urlPat<-function(x) gsub("(ftp|http)(s?)://.*\\b", "", x)
-      SampCrps<-tm_map(SampCrps, urlPat)
-      emlPat<-function(x) gsub("\\b[A-Z a-z 0-9._ - ]*[@](.*?)[.]{1,3} \\b", "", x)
-      SampCrps<- tm_map(SampCrps, emlPat)
-      tt<-function(x) gsub("RT |via", "", x)
-      SampCrps<- tm_map(SampCrps, tt)
-      tun<-function(x) gsub("[@][a - zA - Z0 - 9_]{1,15}", "", x)
-      SampCrps<- tm_map(SampCrps, tun)
-      SampCrps<-tm_map(SampCrps, removeWords, stopwords("portuguese"))
-      tdm <- TermDocumentMatrix(SampCrps)
-      m <- as.matrix(tdm)
-      v <- sort(rowSums(m),decreasing=TRUE)
-      d <- data.frame(word = names(v),freq=v)
-      pal <- brewer.pal(9, "BuGn")
-      pal <- pal[-(1:2)]
-      pal2 <- brewer.pal(8,"Dark2")
-      wordcloud(d$word,d$freq, scale=c(8,.3),min.freq=1,max.words=100, random.order=T, rot.per=.15, colors=pal2, vfont=c("sans serif","plain"))
+      text <- post$comments$message
+      words_td <- getTidyWords(text);
+      p <- words_td %>%
+            count(sentimento, term, wt = count) %>%
+            ungroup() %>%
+            filter(n >= 150) %>%
+            mutate(term = reorder(term, n)) %>%
+            ggplot(aes(term, n, fill = sentimento)) +
+              geom_bar(stat="identity", fill="gray50") +
+              theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+              ylab("Numero de ocorrencias") +
+              xlab("Palavras") + coord_flip()
+      print(p);
+  }
 
-   })
-   
-   output$plotLista <- renderPlot({
-      workdir <- input$workdir
+  output$downloadPalavrasData <- downloadHandler(
+    filename = function() {
+      paste("palavras.png", sep = "")
+    },
+    content = function(file) {
+      device <- function(..., width, height) {
+        grDevices::png(..., width = width, height = height,
+                       res = 300, units = "in")
+      }
+      ggsave(file, plot = plotPalavras2(), device = device)
+
+    }
+  )
+
+  plotPalavras2 = function(){
       url <- input$urlpost
       id_pagina <- input$fbid 
       data <- input$date
       
-      sufix <- format(Sys.time(),"%d%m%Y%H%M");
       # command file.path already controls for the OS
-#      load(file.path(workdir,"fb_oauth"))
-      load("/srv/shiny-server/cns/BadogueContingencial/fb_oauth");
+      load(paste(workdir,"/fb_oauth",sep=""));
       
       data_inicio <- ymd(as.character(data)) + days(-2);
       data_final <- ymd(as.character(data)) + days(2);
@@ -138,44 +109,65 @@ server <- function(input, output) {
       id_post <- mypage$id[which(as.character(mypage$link)%in%url)]
       
       post_dados <- getPost(id_post, token=fb_oauth, n= 10000)
-      id_comments <- (post_dados$comments$from_id);
-      allmessages <- post_dados$comments$message
+      text <- post_dados$comments$message
+      words_td <- getTidyWords(text);
+     
+      p <- words_td %>%
+            count(sentimento, term, wt = count) %>%
+            ungroup() %>%
+            filter(n >= 150) %>%
+            mutate(term = reorder(term, n)) %>%
+            ggplot(aes(term, n, fill = sentimento)) +
+              geom_bar(stat="identity", fill="gray50") +
+              theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+              ylab("Numero de ocorrencias") +
+              xlab("Palavras") + coord_flip()
+      print(p);
+#      plot(1:1000,log(1:1000));
+  }
+#####
+
+  output$downloadExcelData <- downloadHandler(
+    filename = function() {
+      paste("comentarios.xlsx", sep = "")
+    },
+    content = function(file) {
+      url <- input$urlpost
+      id_pagina <- input$fbid 
+      data <- input$date
       
-      spSamp<- unlist(strsplit(allmessages, split=", "))
-      nonAscIDX<- grep("spSamp", iconv(spSamp, "latin1", "ASCII", sub="spSamp"))
-      ascVec<- spSamp[ - nonAscIDX]
-      ascSamp<- paste(ascVec, collapse = ", ")
-      clnSamp<- gsub('[[:digit:]]+', '', ascSamp)
-      clnSamp<- gsub('[[:punct:]]+', '', clnSamp)
-      clnSamp<- gsub("http[[:alnum:]]*", "", clnSamp)
-      clnSamp<- gsub("([[:alpha:]])\1+", "", clnSamp)
-      SampCrps<- Corpus(VectorSource(clnSamp))
-      SampCrps<- tm_map(SampCrps, tolower)
-      SampCrps<- tm_map(SampCrps, removePunctuation)
-      SampCrps<- tm_map(SampCrps, removeNumbers)
-      urlPat<-function(x) gsub("(ftp|http)(s?)://.*\\b", "", x)
-      SampCrps<-tm_map(SampCrps, urlPat)
-      emlPat<-function(x) gsub("\\b[A-Z a-z 0-9._ - ]*[@](.*?)[.]{1,3} \\b", "", x)
-      SampCrps<- tm_map(SampCrps, emlPat)
-      tt<-function(x) gsub("RT |via", "", x)
-      SampCrps<- tm_map(SampCrps, tt)
-      tun<-function(x) gsub("[@][a - zA - Z0 - 9_]{1,15}", "", x)
-      SampCrps<- tm_map(SampCrps, tun)
-      SampCrps<-tm_map(SampCrps, removeWords, stopwords("portuguese"))
-      myCrps<- txt.to.words(SampCrps)
-      tblUniGrm<-data.frame(table(make.ngrams(myCrps, ngram.size = 1)))
-      stblUnigrm<-tblUniGrm[order(tblUniGrm$Freq, decreasing = TRUE),]
-      top20unig<-stblUnigrm[1:20,]
-      colnames(top20unig)<-c("UniGram","Frequency")
-      p <- ggplot (top20unig, aes(x = reorder(UniGram, Frequency), y= Frequency )) + 
-         geom_bar( stat = "Identity" , fill = "magenta" ) +  
-         geom_text( aes (label = Frequency ) , vjust = - 0.10, hjust = -0.8, size = 2 ) +
-         xlab( "Termos" ) +
-         ylab( "Frequência" ) +
-         theme ( axis.text.x = element_text ( angle = 45 , hjust = 1 ) ) + coord_flip()
-      print(p)
-   })
-   
-   
+      # command file.path already controls for the OS
+      load(paste(workdir,"/fb_oauth",sep=""));
+      
+      data_inicio <- ymd(as.character(data)) + days(-2);
+      data_final <- ymd(as.character(data)) + days(2);
+      
+      mypage <- getPage(id_pagina, token = fb_oauth, feed=TRUE, since= as.character(data_inicio), until=as.character(data_final))
+      id_post <- mypage$id[which(as.character(mypage$link)%in%url)]
+      
+      post_dados <- getPost(id_post, token=fb_oauth, n= 10000)
+      allmessages <- post_dados$comments %>% select(created_time,from_id,from_name,message);
+      names(allmessages) <- c("Data","Autor ID","Autor Nome","Conteúdo");
+      wb<-createWorkbook(type="xlsx")
+      TABLE_COLNAMES_STYLE <- CellStyle(wb) + Alignment(wrapText=TRUE, horizontal="ALIGN_CENTER")
+      sheet <- createSheet(wb, sheetName = "facebookdata")
+      setColumnWidth(sheet, colIndex=1:length(allmessages[1,]), 25)
+      addDataFrame(allmessages, sheet, colnamesStyle = TABLE_COLNAMES_STYLE, colStyle = TABLE_COLNAMES_STYLE, startColumn=1, row.names = FALSE)
+      saveWorkbook(wb, file)
+    })
 }
+###### 
+  # Reactive value for selected dataset ----
+#  datasetInput <- reactive({
+#    switch(input$dataset,
+#           "rock" = rock,
+#           "pressure" = pressure,
+#           "cars" = cars
+#    )
+#  })
+
+  # Table of selected dataset ----
+#  output$table <- renderTable({
+#    datasetInput()
+#  })
 

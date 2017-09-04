@@ -1,19 +1,16 @@
-source("./dependencies.R")
-source("./experiment_sentimental_analysis.R")
+library(shiny)
 
+ui <- fluidPage(
 
-fluidPage(
-   titlePanel("Badogue Contingencial"),
-   
-   # Sidebar with controls to select the random distribution type
-   # and number of observations to generate. Note the use of the
-   # br() element to introduce extra vertical spacing
-   sidebarLayout(
-      sidebarPanel(
-         textInput("workdir", 
-                   "Escreva o endereço do Diretório onde guardar as saídas:", 
-                   value = "C:/..."
-         ),
+  # App title ----
+  titlePanel("Badogue's FB data download"),
+
+  # Sidebar layout with input and output definitions ----
+  sidebarLayout(
+
+    # Sidebar panel for inputs ----
+    sidebarPanel(
+
          textInput("urlpost", 
                    "Escreva a URL do post que deseja analisar:", 
                    value = "http://..."
@@ -26,20 +23,23 @@ fluidPage(
                    label = 'Selecione a data para a qual deseja analisar o post:',
                    value = Sys.Date()
          ),
-         actionButton("do", "Baixar")
-      ),
-      
-      # Show a tabset that includes a plot, summary, and table view
-      # of the generated distribution
-      mainPanel(
-         tabsetPanel(type = "tabs", 
-                     tabPanel("Lista de Palavras", plotOutput("plotLista")), 
-                     tabPanel("Nuvem de Palavras", plotOutput("plotNuvem")),
-                     tabPanel("Reações", plotOutput("plotReactions"))
-         )
-      )
-   )
+
+      # Input: Choose dataset ----
+#      selectInput("dataset", "Choose a dataset:",
+#                  choices = c("rock", "pressure", "cars")),
+
+      # Button
+      downloadButton("downloadExcelData", "Download Excel"),
+      downloadButton("downloadPalavrasData", "Download Lista de Palavras")
+
+    ),
+
+    # Main panel for displaying outputs ----
+    mainPanel(
+
+#      tableOutput("table")
+
+    )
+
+  )
 )
-
-
-
